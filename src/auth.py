@@ -1,6 +1,5 @@
 import riot_auth, asyncio
 import os, dotenv, sys
-import urllib
 
 import requests
 

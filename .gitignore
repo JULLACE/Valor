@@ -1,3 +1,4 @@
-/.env
+.env
 /scratch.py
 /todo.md
+src/__pycache__/
