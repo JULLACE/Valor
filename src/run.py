@@ -1,7 +1,7 @@
 import discord, aiohttp
 import os, dotenv
-
 import auth
+import json
 
 dotenv.load_dotenv()
 bot = discord.Bot()
@@ -11,6 +11,11 @@ CURRENT_SEASON = '52ca6698-41c1-e7de-4008-8994d2221209'
 @bot.event
 async def on_ready():
     print(f"{bot.user} up and ready!")
+
+    # Load authorization headers / API keys
+    bot.API = {
+        "Authorization": f"{os.getenv('API')}"
+    }
     tokens = await auth.load_cred()
     if tokens != None:
         bot.HEADERS = {
@@ -19,6 +24,13 @@ async def on_ready():
             "X-Riot-ClientVersion": "release-09.00-shipping-28-2628993",
             "Authorization": f"{tokens.token_type} {tokens.access_token}",
         }
+    
+    # Load PUUIDs of registered players
+    try:
+        with open('players.json', 'r') as f:
+            bot.players = json.load(f)
+    except FileNotFoundError:
+        bot.players = {}
 
 
 @bot.slash_command(name="hello", description="Make sure bot is breathing")
@@ -26,8 +38,25 @@ async def hello(ctx: discord.ApplicationContext):
     await ctx.respond("Hi :)")
 
 @bot.slash_command(name="register", description="Register a player for the bot to track")
-async def register(ctx: discord.ApplicationContext, player: str):
-    ctx.respond("WIP")
+async def register(ctx: discord.ApplicationContext, player: str, tag: str):
+    if len(player) > 16 or len(player) < 3 or len(tag) == 0:
+        await ctx.respond("Please put a valid length username and tag")
+        pass
+
+    if tag[0] == '#':
+        tag = tag[1:]
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"https://api.henrikdev.xyz/valorant/v1/account/{player}/{tag}", headers=bot.API) as r:
+            if r.status == 200:
+                data = await r.json()
+                data = data['data']
+
+                if player not in bot.players:
+                    bot.players[player] = data['puuid']
+                await ctx.respond(data)
+                await ctx.respond(bot.players)
+
 
 @bot.slash_command(name="check", description="Check out a player's stats")
 async def check(ctx: discord.ApplicationContext, player: str):
