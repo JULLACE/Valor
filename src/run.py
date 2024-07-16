@@ -25,43 +25,58 @@ async def on_ready():
             "Authorization": f"{tokens.token_type} {tokens.access_token}",
         }
     
+    bot.players = { }
+
     # Load PUUIDs of registered players
-    try:
-        with open('players.json', 'r') as f:
-            bot.players = json.load(f)
-    except FileNotFoundError:
-        bot.players = {}
+    # try:
+    with open('players.json', 'r') as f:
+        bot.players = json.load(f)
+    except json.decoder.JSONDecodeError:
+        print("Reading error occured. Making new file...")
+        with open('players.json', 'w') as f:
+            bot.players = {}
+
 
 
 @bot.slash_command(name="hello", description="Make sure bot is breathing")
 async def hello(ctx: discord.ApplicationContext):
     await ctx.respond("Hi :)")
 
-@bot.slash_command(name="register", description="Register a player for the bot to track")
-async def register(ctx: discord.ApplicationContext, player: str, tag: str):
+@bot.slash_command(name="check", description="Check out a player's stats")
+async def check(ctx: discord.ApplicationContext, player: str, tag: str):
+    data = None
+
     if len(player) > 16 or len(player) < 3 or len(tag) == 0:
         await ctx.respond("Please put a valid length username and tag")
-        pass
 
-    if tag[0] == '#':
-        tag = tag[1:]
+    elif f"{player}{tag}" not in bot.players:
+        if tag[0] == '#':
+            tag = tag[1:]
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"https://api.henrikdev.xyz/valorant/v1/account/{player}/{tag}", headers=bot.API) as r:
-            if r.status == 200:
-                data = await r.json()
-                data = data['data']
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"https://api.henrikdev.xyz/valorant/v1/account/{player}/{tag}", headers=bot.API) as r:
+                if r.status == 200:
+                    data = await r.json()
 
-                if player not in bot.players:
-                    bot.players[player] = data['puuid']
-                await ctx.respond(data)
-                await ctx.respond(bot.players)
+                    bot.players[f"{player}#{tag}"] = data['data']
+                    with open('players.json', 'w', encoding='utf-8') as f:
+                        json.dump(bot.players, f, indent=4)
+                    await ctx.respond(data)
+                    await ctx.respond(bot.players)
+                else:
+                    await ctx.respond("i broke")
+                    print(r.text)
+
+    else:
+        data = bot.players[f"{player}{tag}"]
+        # Send to data embedder -> send
+        embed = await formatter(player, data)
+        await ctx.respond(data)
 
 
-@bot.slash_command(name="check", description="Check out a player's stats")
-async def check(ctx: discord.ApplicationContext, player: str):
+async def formatter(player: str, data: json):
     embed = discord.Embed(
-        title="Minos",
+        title=f"{player}",
         color=discord.Color.dark_blue()
     )
 
@@ -69,22 +84,23 @@ async def check(ctx: discord.ApplicationContext, player: str):
     embed.set_author(name="Player's Info", icon_url="https://pbs.twimg.com/media/Fbb1PYFagAA6579.png")
     embed.set_thumbnail(url="https://static.wikia.nocookie.net/ficcion-sin-limites/images/d/d8/Minos_Phrime.png/revision/latest/scale-to-width-down/600?cb=20230906001709&path-prefix=es")
 
+
     async with aiohttp.ClientSession() as session:
         async with session.get('https://pd.na.a.pvp.net/mmr/v1/players/18f595d7-ec04-513c-bcf5-53d6914f9a53', headers=bot.HEADERS) as r:
             if r.status == 200:
                 data = await r.json(content_type=None)
                 formatted = data['QueueSkills']['competitive']['SeasonalInfoBySeasonID'][CURRENT_SEASON]
-                formatted = clean_info_season(formatted)
-
+                formatted = clean_info(formatted)
                 embed.add_field(name="Current Season Info", value=formatted, inline=True)
                 
-                await ctx.respond(embed=embed)
+                return embed
             else:
-                await ctx.respond("i require assistance...")
+                embed.add_field(name="Current Season Info", value="Something went wrong", inline=True)
                 print(r.text)
                 print(r.json(content_type=None))
+                return embed
 
-def clean_info_season(unf):
+def clean_info(unf):
     wins = unf['NumberOfWins']
     games = unf['NumberOfGames']
     wr = round(((float(wins) / float(games)) * 100), 1)
