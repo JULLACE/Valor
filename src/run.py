@@ -28,10 +28,10 @@ async def on_ready():
     bot.players = { }
 
     # Load PUUIDs of registered players
-    # try:
-    with open('players.json', 'r') as f:
-        bot.players = json.load(f)
-    except json.decoder.JSONDecodeError:
+    try:
+        with open('players.json', 'r') as f:
+            bot.players = json.load(f)
+    except:
         print("Reading error occured. Making new file...")
         with open('players.json', 'w') as f:
             bot.players = {}
@@ -49,7 +49,7 @@ async def check(ctx: discord.ApplicationContext, player: str, tag: str):
     if len(player) > 16 or len(player) < 3 or len(tag) == 0:
         await ctx.respond("Please put a valid length username and tag")
 
-    elif f"{player}{tag}" not in bot.players:
+    elif f"{player}#{tag}" not in bot.players:
         if tag[0] == '#':
             tag = tag[1:]
 
@@ -68,25 +68,26 @@ async def check(ctx: discord.ApplicationContext, player: str, tag: str):
                     print(r.text)
 
     else:
-        data = bot.players[f"{player}{tag}"]
+        data = bot.players[f"{player}#{tag}"]
         # Send to data embedder -> send
-        embed = await formatter(player, data)
-        await ctx.respond(data)
+        embed = await formatter(player, tag, data)
+        await ctx.respond(embed=embed)
 
 
-async def formatter(player: str, data: json):
+async def formatter(player: str, tag: str, player_data: json):
     embed = discord.Embed(
         title=f"{player}",
         color=discord.Color.dark_blue()
     )
 
-    embed.set_footer(text="If you see this, hi") # footers can have icons too
-    embed.set_author(name="Player's Info", icon_url="https://pbs.twimg.com/media/Fbb1PYFagAA6579.png")
-    embed.set_thumbnail(url="https://static.wikia.nocookie.net/ficcion-sin-limites/images/d/d8/Minos_Phrime.png/revision/latest/scale-to-width-down/600?cb=20230906001709&path-prefix=es")
+    puuid = player_data['puuid']
 
+    embed.set_footer(text="If you see this, hi") # footers can have icons too
+    embed.set_author(name=f"#", icon_url=f"{player_data['card']['small']}")
+    embed.set_thumbnail(url=f"{player_data['card']['large']}")
 
     async with aiohttp.ClientSession() as session:
-        async with session.get('https://pd.na.a.pvp.net/mmr/v1/players/18f595d7-ec04-513c-bcf5-53d6914f9a53', headers=bot.HEADERS) as r:
+        async with session.get(f'https://pd.na.a.pvp.net/mmr/v1/players/{puuid}/', headers=bot.HEADERS) as r:
             if r.status == 200:
                 data = await r.json(content_type=None)
                 formatted = data['QueueSkills']['competitive']['SeasonalInfoBySeasonID'][CURRENT_SEASON]
