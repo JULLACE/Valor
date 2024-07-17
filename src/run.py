@@ -61,8 +61,8 @@ async def check(ctx: discord.ApplicationContext, player: str, tag: str):
                     bot.players[f"{player}#{tag}"] = data['data']
                     with open('players.json', 'w', encoding='utf-8') as f:
                         json.dump(bot.players, f, indent=4)
-                    await ctx.respond(data)
-                    await ctx.respond(bot.players)
+                        embed = await formatter(player, tag, data)
+                        await ctx.respond(embed=embed)
                 else:
                     await ctx.respond("i broke")
                     print(r.text)
