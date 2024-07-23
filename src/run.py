@@ -36,8 +36,6 @@ async def on_ready():
         with open('players.json', 'w') as f:
             bot.players = {}
 
-
-
 @bot.slash_command(name="hello", description="Make sure bot is breathing")
 async def hello(ctx: discord.ApplicationContext):
     await ctx.respond("Hi :)")
@@ -57,12 +55,14 @@ async def check(ctx: discord.ApplicationContext, player: str, tag: str):
             async with session.get(f"https://api.henrikdev.xyz/valorant/v1/account/{player}/{tag}", headers=bot.API) as r:
                 if r.status == 200:
                     data = await r.json()
+                    data = data['data']
 
-                    bot.players[f"{player}#{tag}"] = data['data']
+                    bot.players[f"{player}#{tag}"] = data
                     with open('players.json', 'w', encoding='utf-8') as f:
                         json.dump(bot.players, f, indent=4)
-                        embed = await formatter(player, tag, data)
-                        await ctx.respond(embed=embed)
+                    
+                    embed = await formatter(player, tag, data) 
+                    await ctx.respond(embed=embed)
                 else:
                     await ctx.respond("i broke")
                     print(r.text)
